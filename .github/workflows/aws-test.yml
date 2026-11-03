@@ -1,19 +1,44 @@
-name: Test AWS Connection
+name: Infrastructure Deployment
 
 on:
-  workflow_dispatch: # Allows you to trigger this manually from GitHub
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+# Minimal permissions needed since we are using static secrets instead of OIDC tokens
+permissions:
+  contents: read
 
 jobs:
-  test-connection:
+  terraform:
+    name: Terraform Check & Deploy
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.0
+
+      # Configures access using your long-lived GitHub Repository Secrets
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_GITHUB_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_GITHUB_ACCESS_SECRET }}
-          aws-region: us-east-1 # Keep this or change to your preferred region (e.g., ap-southeast-1)
+          aws-region: ap-southeast-2
 
-      - name: Verify AWS Identity
-        run: |
-          aws sts get-caller-identity
+      - name: Terraform Init
+        run: terraform init
+
+      # This runs on BOTH Pull Requests and Pushes to preview what will change
+      - name: Terraform Plan
+        run: terraform plan
+
+      # The Guardrail: This step ONLY executes if code is successfully merged into the main branch
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve
