@@ -1,0 +1,19 @@
+name: Test AWS Connection
+
+on:
+  workflow_dispatch: # Allows you to trigger this manually from GitHub
+
+jobs:
+  test-connection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_GITHUB_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_GITHUB_ACCESS_SECRET }}
+          aws-region: us-east-1 # Keep this or change to your preferred region (e.g., ap-southeast-1)
+
+      - name: Verify AWS Identity
+        run: |
+          aws sts get-caller-identity
