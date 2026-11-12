@@ -37,3 +37,13 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state_crypto" 
   }
 }
 
+# Block all public access to state bucket
+resource "aws_s3_bucket_public_access_block" "tf_state_public_access" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  block_public_acls = true
+  block_public_policy = true
+  ignore_public_acls = true
+  restrict_public_buckets = true
+
+}
