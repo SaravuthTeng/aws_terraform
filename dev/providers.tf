@@ -4,7 +4,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Environment = "uat"
+      Environment = "devops"
       ManagedBy   = "Terraform"
       Owner       = "teng saravuth"
     }

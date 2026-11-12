@@ -9,4 +9,7 @@ variable "vpc_cidr" {
   default     = "20.20.0.0/16"
   description = "The core CIDR block block allocated to the UAT network environment."
 }
-
+variable "environment" {
+  type        = string
+  default     = "dev" 
+}
