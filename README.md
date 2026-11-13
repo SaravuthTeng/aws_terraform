@@ -1,42 +1,45 @@
 # AWS Infrastructure Automation with Terraform
 
-Automated, modular AWS infrastructure labs built with **Terraform** and **CI/CD** practices—translating enterprise on-premise network security, subnet segmentation, and high-availability design into repeatable **Infrastructure as Code (IaC)**.
+Modular AWS infrastructure labs built with **Terraform**—applying enterprise on-premise network segmentation, firewall chaining, and high-availability design principles to **Infrastructure as Code (IaC)**.
+
+> **Project Status:** 🚧 **Active Development** — Phase 1 (Three-Tier Network Foundation) is complete. Compute (WordPress EC2/ALB), Database (RDS), and CI/CD automation are currently in progress.
 
 ---
 
-## 📌 Featured Project: Three-Tier WordPress Network & Deployment
+## 📌 Project Roadmap: Three-Tier WordPress Architecture
 
-A scalable, fault-tolerant three-tier AWS network architecture built with a custom reusable Terraform module (`modules/three-tier-network`) across isolated environments (`devops` and `prod`).
+* [x] **Phase 1: Three-Tier VPC & Network Security (`modules/three-tier-network`)** — Multi-AZ subnets, Internet/NAT gateways, isolated routing, and chained Security Groups.
+* [ ] **Phase 2: Application & Database Tiers** — EC2 Auto Scaling Group for WordPress, Application Load Balancer (ALB), and Multi-AZ Amazon RDS (MySQL).
+* [ ] **Phase 3: CI/CD Automation** — Automated `terraform fmt`, `validate`, `plan`, and `apply` workflows via GitHub Actions.
 
-### Architecture Overview
+---
+
+## 🏗️ Current Architecture (Phase 1: Network Layer)
 
 ```text
-                           [ Internet Users ]
-                                   │
-                    ┌──────────────┴──────────────┐
-                    ▼  (Ports 80 / 443)           ▼
-            [ Public Subnet 1 ]           [ Public Subnet 2 ]        (Tier 1: ALB & NAT Gateways)
-             10.x.1.0/24 (AZ-1)            10.x.2.0/24 (AZ-2)
-                    │                             │
-                    ▼  (var.app_port)             ▼
-           [ Private Subnet 1 ]          [ Private Subnet 2 ]       (Tier 2: WordPress App Tier)
-            10.x.11.0/24 (AZ-1)           10.x.12.0/24 (AZ-2)
-                    │                             │
-                    ▼  (Port 3306 / MySQL)        ▼
-          [ Isolated Subnet 1 ]         [ Isolated Subnet 2 ]       (Tier 3: RDS / Aurora DB Tier)
-            10.x.21.0/24 (AZ-1)           10.x.22.0/24 (AZ-2)
+                           [ Internet ]
+                                │
+                    ┌───────────┴───────────┐
+                    ▼  (Ports 80 / 443)     ▼
+            [ Public Subnet 1 ]     [ Public Subnet 2 ]        (Tier 1: Future ALB & NAT Gateways)
+             10.x.1.0/24 (AZ-1)      10.x.2.0/24 (AZ-2)
+                    │                       │
+                    ▼  (var.app_port)       ▼
+           [ Private Subnet 1 ]    [ Private Subnet 2 ]       (Tier 2: Future WordPress App Tier)
+            10.x.11.0/24 (AZ-1)     10.x.12.0/24 (AZ-2)
+                    │                       │
+                    ▼  (Port 3306)          ▼
+          [ Isolated Subnet 1 ]   [ Isolated Subnet 2 ]       (Tier 3: Future RDS / Aurora DB Tier)
+            10.x.21.0/24 (AZ-1)     10.x.22.0/24 (AZ-2)
 ```
 
-### Key Architectural & Security Highlights
-* **6-Subnet Multi-AZ Segmentation (`2 AZs x 3 Tiers`):** Dynamically calculates `/24` subnet CIDRs using `cidrsubnet()` across two Availability Zones:
-  * **Public Subnets (`+1`, `+2`):** Hosts the Application Load Balancer (ALB) and NAT Gateways with routes to the Internet Gateway (`0.0.0.0/0`).
-  * **Private Subnets (`+11`, `+12`):** Hosts the WordPress application tier with outbound internet access routed through NAT Gateways for OS/plugin updates.
-  * **Isolated Subnets (`+21`, `+22`):** Hosts the RDS / Aurora database tier with a dedicated route table containing **zero** Internet Gateway or NAT Gateway routes.
-* **Cost-Optimized NAT Gateway Toggle (`var.single_nat_gateway`):** Supports deploying a single NAT Gateway in Dev/UAT (`true`) to reduce lab costs, or dual NAT Gateways across both AZs in Production (`false`) for full high availability.
-* **Zero-Trust Security Group Chaining:** Enforces strict tier-to-tier traffic flow using standalone `aws_vpc_security_group_ingress_rule` and `egress_rule` resources:
-  * **Tier 1 (`public_sg`):** Accepts inbound HTTP (`80`) and HTTPS (`443`) from `0.0.0.0/0` and restricts egress strictly to `private_sg` on `var.app_port`.
-  * **Tier 2 (`private_sg`):** Accepts inbound traffic **only** from `public_sg` on `var.app_port`.
-  * **Tier 3 (`isolate_sg`):** Accepts inbound MySQL (`3306`) traffic **only** from `private_sg`.
+### Design Decisions & Engineering Highlights
+* **6-Subnet Multi-AZ Segmentation (`2 AZs x 3 Tiers`):** Uses `cidrsubnet()` to dynamically carve `/24` subnets across two Availability Zones:
+  * **Public Subnets (`+1`, `+2`):** Routed to the Internet Gateway (`0.0.0.0/0`) for public-facing load balancers and NAT Gateways.
+  * **Private Subnets (`+11`, `+12`):** Routed through NAT Gateways so application instances can download updates without direct inbound internet exposure.
+  * **Isolated Subnets (`+21`, `+22`):** Uses a dedicated route table with **no** Internet Gateway or NAT Gateway routes to fully isolate the database tier.
+* **Cost-Control Toggle (`var.single_nat_gateway`):** Added a boolean flag to deploy **1 NAT Gateway** in Dev/UAT labs (`true`) to reduce hourly AWS costs while retaining **2 NAT Gateways** (`false`) for multi-AZ high availability in Production.
+* **Zero-Trust Security Group Chaining:** Configured standalone `aws_vpc_security_group_ingress_rule` and `egress_rule` resources so each tier only accepts traffic from the exact Security Group above it (`Internet -> public_sg -> private_sg -> isolate_sg`).
 
 ---
 
@@ -46,7 +49,7 @@ A scalable, fault-tolerant three-tier AWS network architecture built with a cust
 aws_terraform/
 ├── devops/                        # Development / CI-CD lab environment
 │   ├── backend.tf                 # Remote state backend configuration
-│   ├── main.tf                    # Core environment resource definitions
+│   ├── main.tf                    # Calls the three-tier-network module
 │   ├── outputs.tf                 # Environment output values
 │   ├── providers.tf               # AWS provider configuration
 │   ├── variables.tf               # Input variable declarations
@@ -55,9 +58,9 @@ aws_terraform/
 │   └── three-tier-network/        # Reusable 3-tier VPC, subnet, routing & security module
 │       ├── main.tf                # VPC, IGW, 6 Subnets, NAT GWs, Route Tables & 3-Tier SGs
 │       ├── output.tf              # Exported network IDs (VPC, subnets, security groups)
-│       └── variable.tf            # Module input parameters (vpc_cidr, azs, single_nat_gateway, app_port)
+│       └── variable.tf            # Module input parameters
 ├── prod/                          # Production environment configuration
-├── .gitignore                     # Excludes local .terraform/ directories and sensitive files
+├── .gitignore                     # Excludes local .terraform/ directories and state files
 └── README.md                      # Project documentation
 ```
 
@@ -70,51 +73,38 @@ aws_terraform/
 | `environment` | Environment prefix for resource naming and tags | `"devops"` or `"prod"` |
 | `vpc_cidr` | Base CIDR block for the three-tier VPC | `"10.0.0.0/16"` |
 | `azs` | List of 2 Availability Zones for multi-AZ deployment | `["ap-southeast-1a", "ap-southeast-1b"]` |
-| `single_nat_gateway` | Use `true` for 1 NAT Gateway (Dev/UAT) or `false` for 2 NAT Gateways (Prod) | `true` |
-| `app_port` | Application port allowed from the ALB tier to the private app tier | `80` or `8080` |
+| `single_nat_gateway` | `true` for 1 NAT Gateway (Dev/Lab cost saving) or `false` for 2 (Prod HA) | `true` |
+| `app_port` | Application port allowed from `public_sg` to `private_sg` | `80` or `8080` |
 
 ---
 
-## 🚀 Getting Started & Deployment
+## 🚀 How to Test Phase 1 (Network Deployment)
 
 1. **Clone the repository:**
    ```bash
    git clone https://github.com
-   cd aws_terraform
+   cd aws_terraform/devops
    ```
 
-2. **Navigate to your target environment (`devops` or `prod`):**
-   ```bash
-   cd devops
-   ```
-
-3. **Initialize Terraform, configure the remote backend, and load the `three-tier-network` module:**
+2. **Initialize Terraform and download providers:**
    ```bash
    terraform init
    ```
 
-4. **Review the execution plan:**
+3. **Preview the network resources to be created:**
    ```bash
    terraform plan
    ```
 
-5. **Apply the configuration to provision AWS resources:**
+4. **Deploy the network stack:**
    ```bash
    terraform apply
    ```
-   *(Type `yes` when prompted to confirm deployment.)*
 
----
-
-## 🧹 Cleanup
-
-To avoid ongoing AWS charges after testing the lab, destroy the provisioned infrastructure:
-
-```bash
-terraform destroy
-```
-
----
+5. **Clean up lab resources when finished:**
+   ```bash
+   terraform destroy
+   ```
 
 ## 🤝 Acknowledgments
 
